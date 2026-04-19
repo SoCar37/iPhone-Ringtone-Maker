@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iPhone Ringtone Maker</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #ffffff;
+  --bg-secondary: #f5f5f4;
+  --bg-info: #e6f1fb;
+  --bg-danger: #fcebeb;
+  --bg-success: #eaf3de;
+  --bg-warning: #faeeda;
+  --text: #1a1a18;
+  --text-secondary: #5f5e5a;
+  --text-info: #185fa5;
+  --text-danger: #a32d2d;
+  --text-success: #3b6d11;
+  --text-warning: #854f0b;
+  --border: rgba(0,0,0,0.15);
+  --border-info: rgba(24,95,165,0.35);
+  --border-danger: rgba(163,45,45,0.35);
+  --border-success: rgba(59,109,17,0.35);
+  --border-warning: rgba(133,79,11,0.35);
+  --accent: #378ADD;
+  --radius: 8px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1c; --bg-secondary: #2a2a28; --bg-info: #042c53;
+    --bg-danger: #501313; --bg-success: #173404; --bg-warning: #412402;
+    --text: #eeecea; --text-secondary: #b4b2a9; --text-info: #85b7eb;
+    --text-danger: #f09595; --text-success: #97c459; --text-warning: #ef9f27;
+    --border: rgba(255,255,255,0.15);
+    --border-info: rgba(133,183,235,0.35); --border-danger: rgba(240,149,149,0.35);
+    --border-success: rgba(151,196,89,0.35); --border-warning: rgba(239,159,39,0.35);
+    --accent: #5ba3e8;
+  }
+}
+
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 2rem 1rem 4rem; }
+.app { width: 100%; max-width: 620px; }
+header { margin-bottom: 2rem; }
+header h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+header p { font-size: 14px; color: var(--text-secondary); line-height: 1.5; }
+.section { margin-bottom: 1.5rem; }
+.label { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
+
+.status-bar { font-size: 13px; padding: 10px 14px; border-radius: var(--radius); border: 0.5px solid var(--border); background: var(--bg-secondary); color: var(--text-secondary); min-height: 40px; display: flex; align-items: center; line-height: 1.4; }
+.status-bar.error   { border-color: var(--border-danger);  background: var(--bg-danger);  color: var(--text-danger);  }
+.status-bar.success { border-color: var(--border-success); background: var(--bg-success); color: var(--text-success); }
+.status-bar.warning { border-color: var(--border-warning); background: var(--bg-warning); color: var(--text-warning); }
+
+button { font-family: var(--font); font-size: 14px; font-weight: 500; color: var(--text); background: transparent; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 16px; height: 36px; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+button:hover { background: var(--bg-secondary); }
+button:active { transform: scale(0.98); }
+button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:hover { opacity: 0.88; }
+
+input[type="text"] { font-family: var(--font); font-size: 14px; color: var(--text); background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 12px; height: 36px; outline: none; width: 100%; transition: border-color 0.15s; }
+input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(55,138,221,0.2); }
+
+.row { display: flex; gap: 10px; }
+.row button { flex: 1; }
+
+/* ── Waveform ── */
+#waveform-wrap { position: relative; border-radius: var(--radius); border: 0.5px solid var(--border); overflow: hidden; background: var(--bg-secondary); user-select: none; touch-action: none; }
+#waveform-canvas { display: block; width: 100%; height: 140px; }
+
+/* dim area outside selection */
+#dim-left, #dim-right { position: absolute; top: 0; height: 100%; background: rgba(0,0,0,0.28); pointer-events: none; }
+
+/* selection border lines */
+#sel-left-line, #sel-right-line { position: absolute; top: 0; height: 100%; width: 3px; background: var(--accent); pointer-events: none; z-index: 4; }
+
+/* drag handles — tall grab tabs on the edges */
+#handle-start, #handle-end {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 44px; background: var(--accent);
+  border-radius: 4px; z-index: 10; cursor: ew-resize;
+  display: flex; align-items: center; justify-content: center;
+}
+#handle-start { border-radius: 0 4px 4px 0; }
+#handle-end   { border-radius: 4px 0 0 4px; }
+.handle-grip { display: flex; flex-direction: column; gap: 3px; }
+.handle-grip span { display: block; width: 2px; height: 10px; background: rgba(255,255,255,0.7); border-radius: 1px; }
+
+/* move cursor over middle of selection */
+#sel-move-zone { position: absolute; top: 0; height: 100%; z-index: 3; cursor: grab; }
+#sel-move-zone:active { cursor: grabbing; }
+
+/* playhead */
+#playhead { position: absolute; top: 0; height: 100%; width: 2px; background: var(--text); opacity: 0.6; pointer-events: none; display: none; z-index: 5; }
+
+.time-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+.time-label { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.sel-duration { font-size: 13px; font-weight: 500; }
+.sel-duration.over { color: var(--text-danger); }
+
+.name-row { display: flex; align-items: center; gap: 8px; }
+.name-row input { flex: 1; }
+.ext { font-size: 14px; color: var(--text-secondary); white-space: nowrap; }
+.divider { height: 0.5px; background: var(--border); margin: 1.5rem 0; }
+footer { margin-top: 3rem; font-size: 12px; color: var(--text-secondary); text-align: center; }
+
+/* cursor hint labels */
+.cursor-hints { display: flex; justify-content: space-between; margin-top: 4px; }
+.cursor-hints span { font-size: 11px; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>iPhone Ringtone Maker</h1>
+    <p>Trim an MP3 and export a .wav clip for iPhone. No uploads, no external libraries — everything runs locally in your browser.</p>
+  </header>
+
+  <div class="section">
+    <div class="label">Audio file</div>
+    <div class="row"><button onclick="document.getElementById('file-input').click()">Choose MP3 file</button></div>
+    <input type="file" id="file-input" accept="audio/*" style="display:none">
+    <div id="status" class="status-bar" style="margin-top:8px;">No file loaded — click above to get started</div>
+  </div>
+
+  <div id="editor-section" style="display:none;">
+
+    <div class="section">
+      <div class="label">Select your clip</div>
+      <div id="waveform-wrap">
+        <canvas id="waveform-canvas"></canvas>
+        <div id="dim-left"></div>
+        <div id="dim-right"></div>
+        <div id="sel-left-line"></div>
+        <div id="sel-right-line"></div>
+        <div id="sel-move-zone"></div>
+        <div id="handle-start"><div class="handle-grip"><span></span><span></span><span></span></div></div>
+        <div id="handle-end"><div class="handle-grip"><span></span><span></span><span></span></div></div>
+        <div id="playhead"></div>
+      </div>
+      <div class="cursor-hints">
+        <span>Drag blue tabs to resize</span>
+        <span>Drag middle to move</span>
+      </div>
+      <div class="time-row" style="margin-top:4px;">
+        <span class="time-label" id="time-start">0:00</span>
+        <span class="sel-duration" id="sel-duration">Selection: 0:00</span>
+        <span class="time-label" id="time-end">0:00</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="row">
+        <button id="btn-play" onclick="previewClip()">Play selection</button>
+        <button id="btn-stop" onclick="stopPlayback()" style="display:none;">Stop</button>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <div class="label">Output file name</div>
+      <div class="name-row">
+        <input type="text" id="filename-input" placeholder="ringtone" maxlength="60" />
+        <span class="ext">.wav</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <button class="primary" id="btn-export" onclick="exportWav()" style="width:100%; height:42px; font-size:15px;">Export as .wav</button>
+      <div id="export-status" style="display:none; margin-top:8px;"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <div class="label" style="margin-bottom:8px;">Installing on iPhone</div>
+      <div style="font-size:13px; color:var(--text-secondary); line-height:1.8;">
+        <strong style="color:var(--text); font-weight:500;">1.</strong> Transfer the .wav to your iPhone (Google Drive, iCloud, email, or USB)<br>
+        <strong style="color:var(--text); font-weight:500;">2.</strong> Open GarageBand and import the audio<br>
+        <strong style="color:var(--text); font-weight:500;">3.</strong> Tap My Songs → long-press the project → Share → Ringtone<br>
+        <strong style="color:var(--text); font-weight:500;">4.</strong> Name it and tap Export — it goes straight to Settings<br>
+        <strong style="color:var(--text); font-weight:500;">5.</strong> Delete the .wav from your Files app — it's no longer needed
+      </div>
+    </div>
+
+  </div>
+  <footer>Runs entirely in your browser — no data is uploaded or shared.</footer>
+</div>
+
+<script>
+let audioBuffer = null, audioCtx = null, sourceNode = null;
+let isPlaying = false, duration = 0;
+let startRatio = 0, endRatio = 0.5;
+let animFrame = null, playStartTime = 0, playStartOffset = 0;
+let dragMode = null, dragStartX = 0, dragStartS = 0, dragStartE = 0;
+const MAX_SEC = 30;
+const HANDLE_PX = 18;
+
+function fmt(s) { s = Math.max(0,s); return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
+function fmtMs(s) { s = Math.max(0,s); const sec=(s%60).toFixed(1); return Math.floor(s/60)+':'+(parseFloat(sec)<10?'0':'')+sec; }
+function setStatus(msg,type) { const el=document.getElementById('status'); el.textContent=msg; el.className='status-bar'+(type?' '+type:''); }
+function showExportStatus(msg,type) { const el=document.getElementById('export-status'); el.style.display=''; el.className='status-bar'+(type?' '+type:''); el.textContent=msg; }
+
+document.getElementById('file-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  setStatus('Loading '+file.name+'...');
+  try {
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    audioBuffer = await audioCtx.decodeAudioData(await file.arrayBuffer());
+    duration = audioBuffer.duration;
+    startRatio = 0;
+    endRatio = Math.min(1, MAX_SEC/duration);
+    drawWaveform();
+    updateSelection();
+    document.getElementById('editor-section').style.display='';
+    setStatus('Loaded: '+file.name+' ('+fmt(duration)+' total)');
+  } catch(err) { setStatus('Could not decode audio. Please use an MP3 file.','error'); }
+});
+
+function drawWaveform() {
+  const canvas = document.getElementById('waveform-canvas');
+  const wrap = document.getElementById('waveform-wrap');
+  const dpr = window.devicePixelRatio||1;
+  const W = wrap.offsetWidth, H = 140;
+  canvas.width = W*dpr; canvas.height = H*dpr;
+  canvas.style.width = W+'px'; canvas.style.height = H+'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,W,H);
+
+  const data = audioBuffer.getChannelData(0);
+  const step = Math.ceil(data.length/W);
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+  // background
+  ctx.fillStyle = isDark ? '#2a2a28' : '#f5f5f4';
+  ctx.fillRect(0,0,W,H);
+
+  // center line
+  ctx.strokeStyle = isDark ? 'rgba(180,178,169,0.15)' : 'rgba(95,94,90,0.12)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+
+  // waveform bars
+  const barColor = isDark ? 'rgba(180,178,169,0.75)' : 'rgba(55,94,130,0.55)';
+  ctx.fillStyle = barColor;
+  for (let i=0; i<W; i++) {
+    let min=1, max=-1;
+    for (let j=0; j<step; j++) { const d=data[i*step+j]||0; if(d<min)min=d; if(d>max)max=d; }
+    const yTop = ((1-max)/2)*H;
+    const yBot = ((1-min)/2)*H;
+    ctx.fillRect(i, yTop, 1, Math.max(1, yBot-yTop));
+  }
+}
+
+function updateSelection() {
+  const wrap = document.getElementById('waveform-wrap');
+  const W = wrap.offsetWidth;
+  const lx = startRatio * W;
+  const rx = endRatio * W;
+  const selW = rx - lx;
+
+  document.getElementById('dim-left').style.cssText = 'left:0; width:'+lx+'px;';
+  document.getElementById('dim-right').style.cssText = 'right:0; width:'+(W-rx)+'px;';
+  document.getElementById('sel-left-line').style.left = lx+'px';
+  document.getElementById('sel-right-line').style.left = (rx-3)+'px';
+
+  // handles sit just outside the selection lines
+  document.getElementById('handle-start').style.left = (lx-HANDLE_PX+3)+'px';
+  document.getElementById('handle-end').style.left   = (rx-3)+'px';
+
+  // move zone covers the interior (between handles)
+  const mzLeft = lx + HANDLE_PX;
+  const mzWidth = Math.max(0, selW - HANDLE_PX*2);
+  const mz = document.getElementById('sel-move-zone');
+  mz.style.left = mzLeft+'px';
+  mz.style.width = mzWidth+'px';
+
+  const startSec = startRatio*duration, endSec = endRatio*duration;
+  const selSec = endSec - startSec;
+  document.getElementById('time-start').textContent = fmt(startSec);
+  document.getElementById('time-end').textContent = fmt(endSec);
+  const el = document.getElementById('sel-duration');
+  el.textContent = 'Selection: '+fmtMs(selSec);
+  el.className = selSec > MAX_SEC ? 'sel-duration over' : 'sel-duration';
+  if (selSec > MAX_SEC) el.textContent += ' — max 30s';
+}
+
+// ── Drag logic ──
+const wrap = document.getElementById('waveform-wrap');
+
+function getX(e) {
+  const r = wrap.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  return Math.max(0, Math.min(clientX - r.left, r.width));
+}
+
+function onDragStart(mode, e) {
+  dragMode = mode;
+  dragStartX = getX(e);
+  dragStartS = startRatio;
+  dragStartE = endRatio;
+  e.preventDefault();
+}
+
+document.getElementById('handle-start').addEventListener('mousedown',  (e) => onDragStart('start', e));
+document.getElementById('handle-start').addEventListener('touchstart', (e) => onDragStart('start', e), {passive:false});
+document.getElementById('handle-end').addEventListener('mousedown',    (e) => onDragStart('end', e));
+document.getElementById('handle-end').addEventListener('touchstart',   (e) => onDragStart('end', e), {passive:false});
+document.getElementById('sel-move-zone').addEventListener('mousedown', (e) => onDragStart('move', e));
+document.getElementById('sel-move-zone').addEventListener('touchstart',(e) => onDragStart('move', e), {passive:false});
+
+function onDragMove(e) {
+  if (!dragMode) return;
+  const W = wrap.offsetWidth;
+  const x = getX(e);
+  const delta = (x - dragStartX) / W;
+
+  if (dragMode === 'start') {
+    startRatio = Math.max(0, Math.min(dragStartS + delta, endRatio - 1/W));
+  } else if (dragMode === 'end') {
+    endRatio = Math.max(startRatio + 1/W, Math.min(dragStartE + delta, 1));
+  } else if (dragMode === 'move') {
+    const span = dragStartE - dragStartS;
+    let ns = dragStartS + delta;
+    ns = Math.max(0, Math.min(ns, 1 - span));
+    startRatio = ns;
+    endRatio = ns + span;
+  }
+  updateSelection();
+  if (e.cancelable) e.preventDefault();
+}
+
+function onDragEnd() { dragMode = null; }
+
+document.addEventListener('mousemove', onDragMove);
+document.addEventListener('mouseup', onDragEnd);
+document.addEventListener('touchmove', onDragMove, {passive:false});
+document.addEventListener('touchend', onDragEnd);
+
+// ── Playback ──
+function previewClip() {
+  if (!audioBuffer) return;
+  stopPlayback();
+  const s = startRatio*duration, en = endRatio*duration;
+  sourceNode = audioCtx.createBufferSource();
+  sourceNode.buffer = audioBuffer;
+  sourceNode.connect(audioCtx.destination);
+  sourceNode.start(0, s, en-s);
+  isPlaying=true; playStartTime=audioCtx.currentTime; playStartOffset=s;
+  document.getElementById('btn-play').style.display='none';
+  document.getElementById('btn-stop').style.display='';
+  sourceNode.onended = () => {
+    isPlaying=false; cancelAnimationFrame(animFrame);
+    document.getElementById('playhead').style.display='none';
+    document.getElementById('btn-play').style.display='';
+    document.getElementById('btn-stop').style.display='none';
+  };
+  animatePlayhead();
+}
+
+function stopPlayback() {
+  if (sourceNode) { try { sourceNode.stop(); } catch(e) {} sourceNode=null; }
+  isPlaying=false; cancelAnimationFrame(animFrame);
+  document.getElementById('playhead').style.display='none';
+  document.getElementById('btn-play').style.display='';
+  document.getElementById('btn-stop').style.display='none';
+}
+
+function animatePlayhead() {
+  if (!isPlaying) return;
+  const cur = playStartOffset + (audioCtx.currentTime - playStartTime);
+  const ph = document.getElementById('playhead');
+  ph.style.display='';
+  ph.style.left = (cur/duration * wrap.offsetWidth)+'px';
+  animFrame = requestAnimationFrame(animatePlayhead);
+}
+
+// ── WAV Export ──
+function exportWav() {
+  const selSec = (endRatio-startRatio)*duration;
+  if (selSec > MAX_SEC) { showExportStatus('Selection is '+fmtMs(selSec)+' — trim to 30 seconds or less.','error'); return; }
+
+  const sampleRate = audioBuffer.sampleRate;
+  const numChannels = audioBuffer.numberOfChannels;
+  const startSample = Math.floor(startRatio*duration*sampleRate);
+  const endSample   = Math.floor(endRatio*duration*sampleRate);
+  const frameCount  = endSample - startSample;
+  const byteCount   = frameCount * numChannels * 2;
+  const buf = new ArrayBuffer(44+byteCount);
+  const view = new DataView(buf);
+
+  function ws(off,str) { for(let i=0;i<str.length;i++) view.setUint8(off+i,str.charCodeAt(i)); }
+  ws(0,'RIFF'); view.setUint32(4,36+byteCount,true);
+  ws(8,'WAVE'); ws(12,'fmt '); view.setUint32(16,16,true);
+  view.setUint16(20,1,true); view.setUint16(22,numChannels,true);
+  view.setUint32(24,sampleRate,true); view.setUint32(28,sampleRate*numChannels*2,true);
+  view.setUint16(32,numChannels*2,true); view.setUint16(34,16,true);
+  ws(36,'data'); view.setUint32(40,byteCount,true);
+
+  let offset=44;
+  for (let i=0; i<frameCount; i++) {
+    for (let ch=0; ch<numChannels; ch++) {
+      const s = Math.max(-1, Math.min(1, audioBuffer.getChannelData(ch)[startSample+i]));
+      view.setInt16(offset, s<0 ? s*0x8000 : s*0x7FFF, true);
+      offset+=2;
+    }
+  }
+
+  const rawName = (document.getElementById('filename-input').value.trim()||'ringtone').replace(/[^a-zA-Z0-9_\-\s]/g,'').trim()||'ringtone';
+  const blob = new Blob([buf],{type:'audio/wav'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=rawName+'.wav'; a.click();
+  URL.revokeObjectURL(url);
+  showExportStatus(rawName+'.wav downloaded — '+fmtMs(selSec)+' clip ready for GarageBand.','success');
+}
+
+window.addEventListener('resize', () => { if (audioBuffer) { drawWaveform(); updateSelection(); } });
+</script>
+</body>
+</html>
