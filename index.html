@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iPhone Ringtone Maker</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #ffffff;
+  --bg-secondary: #f5f5f4;
+  --bg-info: #e6f1fb;
+  --bg-danger: #fcebeb;
+  --bg-success: #eaf3de;
+  --bg-warning: #faeeda;
+  --text: #1a1a18;
+  --text-secondary: #5f5e5a;
+  --text-info: #185fa5;
+  --text-danger: #a32d2d;
+  --text-success: #3b6d11;
+  --text-warning: #854f0b;
+  --border: rgba(0,0,0,0.15);
+  --border-info: rgba(24,95,165,0.35);
+  --border-danger: rgba(163,45,45,0.35);
+  --border-success: rgba(59,109,17,0.35);
+  --border-warning: rgba(133,79,11,0.35);
+  --accent: #378ADD;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1c;
+    --bg-secondary: #2a2a28;
+    --bg-info: #042c53;
+    --bg-danger: #501313;
+    --bg-success: #173404;
+    --bg-warning: #412402;
+    --text: #eeecea;
+    --text-secondary: #b4b2a9;
+    --text-info: #85b7eb;
+    --text-danger: #f09595;
+    --text-success: #97c459;
+    --text-warning: #ef9f27;
+    --border: rgba(255,255,255,0.15);
+    --border-info: rgba(133,183,235,0.35);
+    --border-danger: rgba(240,149,149,0.35);
+    --border-success: rgba(151,196,89,0.35);
+    --border-warning: rgba(239,159,39,0.35);
+    --accent: #5ba3e8;
+  }
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem 4rem;
+}
+
+.app { width: 100%; max-width: 620px; }
+
+header { margin-bottom: 2rem; }
+header h1 { font-size: 22px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+header p { font-size: 14px; color: var(--text-secondary); line-height: 1.5; }
+
+.section { margin-bottom: 1.5rem; }
+.label { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
+
+.status-bar {
+  font-size: 13px; padding: 10px 14px; border-radius: var(--radius);
+  border: 0.5px solid var(--border); background: var(--bg-secondary);
+  color: var(--text-secondary); min-height: 40px; display: flex; align-items: center; line-height: 1.4;
+}
+.status-bar.error   { border-color: var(--border-danger);  background: var(--bg-danger);  color: var(--text-danger);  }
+.status-bar.success { border-color: var(--border-success); background: var(--bg-success); color: var(--text-success); }
+.status-bar.warning { border-color: var(--border-warning); background: var(--bg-warning); color: var(--text-warning); }
+.status-bar.info    { border-color: var(--border-info);    background: var(--bg-info);    color: var(--text-info);    }
+
+button {
+  font-family: var(--font); font-size: 14px; font-weight: 500; color: var(--text);
+  background: transparent; border: 0.5px solid var(--border); border-radius: var(--radius);
+  padding: 0 16px; height: 36px; cursor: pointer; transition: background 0.15s; white-space: nowrap;
+}
+button:hover  { background: var(--bg-secondary); }
+button:active { transform: scale(0.98); }
+button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:hover { opacity: 0.88; }
+
+input[type="text"] {
+  font-family: var(--font); font-size: 14px; color: var(--text); background: var(--bg);
+  border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 12px;
+  height: 36px; outline: none; width: 100%; transition: border-color 0.15s;
+}
+input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(55,138,221,0.2); }
+
+.row { display: flex; gap: 10px; align-items: center; }
+.row button { flex: 1; }
+
+#waveform-container {
+  position: relative; height: 90px; background: var(--bg-secondary);
+  border-radius: var(--radius); border: 0.5px solid var(--border);
+  overflow: hidden; cursor: crosshair; user-select: none; touch-action: none;
+}
+#waveform-canvas { display: block; width: 100%; height: 100%; }
+#selection-overlay {
+  position: absolute; top: 0; height: 100%;
+  background: rgba(55,138,221,0.15);
+  border-left: 2px solid var(--accent); border-right: 2px solid var(--accent);
+  pointer-events: none;
+}
+#playhead { position: absolute; top: 0; height: 100%; width: 2px; background: var(--text); opacity: 0.5; pointer-events: none; display: none; }
+
+.handle { position: absolute; top: 0; width: 18px; height: 100%; cursor: ew-resize; display: flex; align-items: center; justify-content: center; z-index: 10; pointer-events: all; }
+.handle-inner { width: 4px; height: 60%; background: var(--accent); border-radius: 2px; }
+#handle-start { left: 0; transform: translateX(-9px); }
+#handle-end   { right: 0; transform: translateX(9px); }
+
+.time-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+.time-label { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.sel-duration { font-size: 13px; font-weight: 500; color: var(--text); }
+.sel-duration.over { color: var(--text-danger); }
+
+.name-row { display: flex; align-items: center; gap: 8px; }
+.name-row input { flex: 1; }
+.ext { font-size: 14px; color: var(--text-secondary); white-space: nowrap; }
+
+#progress-bar { height: 4px; background: var(--bg-secondary); border-radius: 2px; overflow: hidden; margin-top: 10px; display: none; }
+#progress-fill { height: 100%; width: 0%; background: var(--accent); transition: width 0.25s; }
+
+.divider { height: 0.5px; background: var(--border); margin: 1.5rem 0; }
+
+footer { margin-top: 3rem; font-size: 12px; color: var(--text-secondary); text-align: center; line-height: 1.6; }
+footer a { color: var(--text-info); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>iPhone Ringtone Maker</h1>
+    <p>Trim an MP3 and export it as a .m4r ringtone file for iPhone. Everything runs in your browser — your audio never leaves your device.</p>
+  </header>
+
+  <div class="section">
+    <div class="label">Audio file</div>
+    <div class="row">
+      <button onclick="document.getElementById('file-input').click()">Choose MP3 file</button>
+    </div>
+    <input type="file" id="file-input" accept="audio/*" style="display:none">
+    <div id="status" class="status-bar" style="margin-top:8px;">No file loaded — click above to get started</div>
+  </div>
+
+  <div id="editor-section" style="display:none;">
+    <div class="section">
+      <div class="label">Select your clip — drag the blue handles</div>
+      <div id="waveform-container">
+        <canvas id="waveform-canvas"></canvas>
+        <div id="selection-overlay">
+          <div class="handle" id="handle-start"><div class="handle-inner"></div></div>
+          <div class="handle" id="handle-end"><div class="handle-inner"></div></div>
+        </div>
+        <div id="playhead"></div>
+      </div>
+      <div class="time-row">
+        <span class="time-label" id="time-start">0:00</span>
+        <span class="sel-duration" id="sel-duration">Selection: 0:00</span>
+        <span class="time-label" id="time-end">0:00</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="row">
+        <button id="btn-play" onclick="previewClip()">Play selection</button>
+        <button id="btn-stop" onclick="stopPlayback()" style="display:none;">Stop</button>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <div class="label">Output file name</div>
+      <div class="name-row">
+        <input type="text" id="filename-input" placeholder="ringtone" maxlength="60" />
+        <span class="ext">.m4r</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <button class="primary" id="btn-export" onclick="exportRingtone()" style="width:100%; height:42px; font-size:15px;">Export as .m4r</button>
+      <div id="progress-bar"><div id="progress-fill"></div></div>
+      <div id="export-status" style="display:none; margin-top:8px;"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <div class="label" style="margin-bottom:8px;">Installing on iPhone</div>
+      <div style="font-size:13px; color:var(--text-secondary); line-height:1.7;">
+        <strong style="color:var(--text); font-weight:500;">GarageBand (easiest):</strong> AirDrop the .m4r to your iPhone, open GarageBand, import the audio, then export as a ringtone directly to Settings.<br><br>
+        <strong style="color:var(--text); font-weight:500;">iTunes / Finder:</strong> Drag the .m4r into iTunes, sync your iPhone, then go to Settings → Sounds → Ringtone.
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Powered by <a href="https://ffmpegwasm.netlify.app" target="_blank">ffmpeg.wasm</a> — audio processing runs locally in your browser.
+  </footer>
+</div>
+
+<script>
+let audioBuffer = null, audioCtx = null, sourceNode = null;
+let isPlaying = false, duration = 0;
+let startRatio = 0, endRatio = 0.5;
+let rawFile = null, ffmpegReady = false, ffmpegInstance = null;
+let animFrame = null, playStartTime = 0, playStartOffset = 0, dragging = null;
+const MAX_SEC = 30;
+
+function fmt(s) {
+  s = Math.max(0, s);
+  return Math.floor(s/60) + ':' + String(Math.floor(s%60)).padStart(2,'0');
+}
+function fmtMs(s) {
+  s = Math.max(0, s);
+  const sec = (s % 60).toFixed(1);
+  return Math.floor(s/60) + ':' + (parseFloat(sec) < 10 ? '0' : '') + sec;
+}
+function setStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = 'status-bar' + (type ? ' ' + type : '');
+}
+function showExportStatus(msg, type) {
+  const el = document.getElementById('export-status');
+  el.style.display = '';
+  el.className = 'status-bar' + (type ? ' ' + type : '');
+  el.textContent = msg;
+}
+
+document.getElementById('file-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  rawFile = file;
+  setStatus('Loading ' + file.name + '...');
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const buf = await file.arrayBuffer();
+    audioBuffer = await audioCtx.decodeAudioData(buf);
+    duration = audioBuffer.duration;
+    startRatio = 0;
+    endRatio = Math.min(1, MAX_SEC / duration);
+    drawWaveform();
+    updateSelection();
+    document.getElementById('editor-section').style.display = '';
+    setStatus('Loaded: ' + file.name + ' (' + fmt(duration) + ' total)');
+    loadFFmpeg();
+  } catch(err) {
+    setStatus('Could not decode audio. Please use an MP3 file.', 'error');
+  }
+});
+
+function drawWaveform() {
+  const canvas = document.getElementById('waveform-canvas');
+  const container = document.getElementById('waveform-container');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = container.offsetWidth * dpr;
+  canvas.height = container.offsetHeight * dpr;
+  canvas.style.width = container.offsetWidth + 'px';
+  canvas.style.height = container.offsetHeight + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = container.offsetWidth, H = container.offsetHeight;
+  const data = audioBuffer.getChannelData(0);
+  const step = Math.ceil(data.length / W);
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'rgba(180,178,169,0.45)' : 'rgba(95,94,90,0.35)';
+  for (let i = 0; i < W; i++) {
+    let min = 1, max = -1;
+    for (let j = 0; j < step; j++) {
+      const d = data[i * step + j] || 0;
+      if (d < min) min = d; if (d > max) max = d;
+    }
+    ctx.fillRect(i, (1 + min) / 2 * H, 1, Math.max(1, (max - min) / 2 * H));
+  }
+}
+
+function updateSelection() {
+  const W = document.getElementById('waveform-container').offsetWidth;
+  const ov = document.getElementById('selection-overlay');
+  ov.style.left = (startRatio * W) + 'px';
+  ov.style.width = ((endRatio - startRatio) * W) + 'px';
+  const selSec = (endRatio - startRatio) * duration;
+  document.getElementById('time-start').textContent = fmt(startRatio * duration);
+  document.getElementById('time-end').textContent = fmt(endRatio * duration);
+  const el = document.getElementById('sel-duration');
+  el.textContent = 'Selection: ' + fmtMs(selSec);
+  el.className = selSec > MAX_SEC ? 'sel-duration over' : 'sel-duration';
+  if (selSec > MAX_SEC) el.textContent += ' — max 30s';
+}
+
+const wc = document.getElementById('waveform-container');
+function getRatio(clientX) {
+  const r = wc.getBoundingClientRect();
+  return Math.max(0, Math.min((clientX - r.left) / r.width, 1));
+}
+function applyDrag(ratio) {
+  if (dragging === 'start') startRatio = Math.min(ratio, endRatio - 0.01);
+  else if (dragging === 'end') endRatio = Math.max(ratio, startRatio + 0.01);
+  else if (dragging && dragging.startsWith('move:')) {
+    const p = dragging.split(':');
+    const span = parseFloat(p[2]) - parseFloat(p[1]);
+    let ns = parseFloat(p[1]) + (ratio - parseFloat(p[3]));
+    ns = Math.max(0, Math.min(ns, 1 - span));
+    startRatio = ns; endRatio = ns + span;
+  }
+  updateSelection();
+}
+wc.addEventListener('mousedown', (e) => {
+  const ratio = getRatio(e.clientX), W = wc.getBoundingClientRect().width;
+  const spx = startRatio * W, epx = endRatio * W, px = ratio * W;
+  if (Math.abs(px - spx) < 18) dragging = 'start';
+  else if (Math.abs(px - epx) < 18) dragging = 'end';
+  else if (ratio > startRatio && ratio < endRatio) dragging = 'move:' + startRatio + ':' + endRatio + ':' + ratio;
+  e.preventDefault();
+});
+document.addEventListener('mousemove', (e) => { if (dragging) applyDrag(getRatio(e.clientX)); });
+document.addEventListener('mouseup', () => { dragging = null; });
+wc.addEventListener('touchstart', (e) => {
+  const ratio = getRatio(e.touches[0].clientX), W = wc.getBoundingClientRect().width;
+  if (Math.abs(ratio * W - startRatio * W) < 22) dragging = 'start';
+  else if (Math.abs(ratio * W - endRatio * W) < 22) dragging = 'end';
+  e.preventDefault();
+}, { passive: false });
+document.addEventListener('touchmove', (e) => { if (dragging) applyDrag(getRatio(e.touches[0].clientX)); }, { passive: false });
+document.addEventListener('touchend', () => { dragging = null; });
+
+function previewClip() {
+  if (!audioBuffer) return;
+  stopPlayback();
+  const s = startRatio * duration, en = endRatio * duration;
+  sourceNode = audioCtx.createBufferSource();
+  sourceNode.buffer = audioBuffer;
+  sourceNode.connect(audioCtx.destination);
+  sourceNode.start(0, s, en - s);
+  isPlaying = true; playStartTime = audioCtx.currentTime; playStartOffset = s;
+  document.getElementById('btn-play').style.display = 'none';
+  document.getElementById('btn-stop').style.display = '';
+  sourceNode.onended = () => {
+    isPlaying = false; cancelAnimationFrame(animFrame);
+    document.getElementById('playhead').style.display = 'none';
+    document.getElementById('btn-play').style.display = '';
+    document.getElementById('btn-stop').style.display = 'none';
+  };
+  animatePlayhead();
+}
+function stopPlayback() {
+  if (sourceNode) { try { sourceNode.stop(); } catch(e) {} sourceNode = null; }
+  isPlaying = false; cancelAnimationFrame(animFrame);
+  document.getElementById('playhead').style.display = 'none';
+  document.getElementById('btn-play').style.display = '';
+  document.getElementById('btn-stop').style.display = 'none';
+}
+function animatePlayhead() {
+  if (!isPlaying) return;
+  const cur = playStartOffset + (audioCtx.currentTime - playStartTime);
+  const ph = document.getElementById('playhead');
+  ph.style.display = ''; ph.style.left = (cur / duration * wc.offsetWidth) + 'px';
+  animFrame = requestAnimationFrame(animatePlayhead);
+}
+
+async function loadFFmpeg() {
+  if (ffmpegReady) return;
+  setStatus('Loading audio encoder (~30MB, one-time download)...');
+  try {
+    const script1 = document.createElement('script');
+    script1.src = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/umd/ffmpeg.js';
+    document.head.appendChild(script1);
+    await new Promise((res, rej) => { script1.onload = res; script1.onerror = rej; });
+
+    const script2 = document.createElement('script');
+    script2.src = 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js';
+    document.head.appendChild(script2);
+    await new Promise((res, rej) => { script2.onload = res; script2.onerror = rej; });
+
+    const { FFmpeg } = window.FFmpegWASM;
+    const { toBlobURL } = window.FFmpegUtil;
+    ffmpegInstance = new FFmpeg();
+
+    const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd';
+    await ffmpegInstance.load({
+      coreURL: await toBlobURL(baseURL + '/ffmpeg-core.js', 'text/javascript'),
+      wasmURL: await toBlobURL(baseURL + '/ffmpeg-core.wasm', 'application/wasm'),
+    });
+
+    ffmpegReady = true;
+    setStatus('Ready — select your clip and export.', 'success');
+  } catch(err) {
+    console.error('FFmpeg load error:', err);
+    setStatus('Encoder failed to load. Try refreshing the page. (' + err.message + ')', 'error');
+  }
+}
+
+async function exportRingtone() {
+  const selSec = (endRatio - startRatio) * duration;
+  if (selSec > MAX_SEC) { showExportStatus('Selection is ' + fmtMs(selSec) + ' — trim to 30 seconds or less.', 'error'); return; }
+  if (!ffmpegReady) { showExportStatus('Encoder still loading — please wait a moment.', 'warning'); return; }
+
+  const startSec = startRatio * duration, endSec = endRatio * duration;
+  const rawName = (document.getElementById('filename-input').value.trim() || 'ringtone').replace(/[^a-zA-Z0-9_\-\s]/g,'').trim() || 'ringtone';
+
+  document.getElementById('btn-export').disabled = true;
+  document.getElementById('btn-export').textContent = 'Exporting...';
+  document.getElementById('export-status').style.display = 'none';
+  const pb = document.getElementById('progress-bar');
+  pb.style.display = '';
+  document.getElementById('progress-fill').style.width = '10%';
+
+  try {
+    const { fetchFile } = window.FFmpegUtil;
+    await ffmpegInstance.writeFile('input', await fetchFile(rawFile));
+    document.getElementById('progress-fill').style.width = '40%';
+    await ffmpegInstance.exec(['-i','input','-ss',startSec.toFixed(3),'-to',endSec.toFixed(3),'-c:a','aac','-b:a','128k','output.m4r']);
+    document.getElementById('progress-fill').style.width = '85%';
+    const data = await ffmpegInstance.readFile('output.m4r');
+    document.getElementById('progress-fill').style.width = '100%';
+    const blob = new Blob([data.buffer], { type: 'audio/mp4' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = rawName + '.m4r'; a.click();
+    URL.revokeObjectURL(url);
+    showExportStatus(rawName + '.m4r downloaded — ' + fmtMs(selSec) + ' clip ready for iPhone.', 'success');
+  } catch(err) {
+    showExportStatus('Export failed: ' + err.message, 'error');
+  } finally {
+    document.getElementById('btn-export').disabled = false;
+    document.getElementById('btn-export').textContent = 'Export as .m4r';
+    setTimeout(() => { pb.style.display = 'none'; document.getElementById('progress-fill').style.width = '0%'; }, 2500);
+  }
+}
+
+window.addEventListener('resize', () => { if (audioBuffer) { drawWaveform(); updateSelection(); } });
+</script>
+</body>
+</html>
